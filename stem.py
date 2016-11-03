@@ -113,13 +113,18 @@ def main():
         propositions += similar_word(lq)
 
     propositions = prepare_propositions(query, propositions)[:5]
-    
-    print "Choose extension:"
-    print 0, ":  ---"
-    for i, prop in enumerate(propositions):
-        print i+1, ": ", prop[1]
 
-    tip = raw_input('-->')
+    query_string = reduce(lambda x, y: x + " " + y, query)
+    print "<------ Query ------>"
+
+    print query_string + "\n"
+
+    print "<------ Similar queries ------>"
+    for i, prop in enumerate(propositions):
+        
+        print str(i+1)+")", query_string + " " + prop[1]
+
+    tip = raw_input('\nChoose query (0 for original): ')
 
     if int(tip) > 0:
         query.append(propositions[int(tip)-1][1])
