@@ -3,6 +3,9 @@
 import numpy as np
 from stemming.porter2 import stem
 import sys
+from nltk.corpus import wordnet as wn
+from collections import Counter
+
 
 # Prepare word by removing characters that are not alphanumeric
 def prepare_word(word):
@@ -100,6 +103,27 @@ def main():
     # Read query from standard input
     query = sys.argv[3:]
     
+    
+    if len(query) == 0:
+        return
+    
+    propositions = []
+
+    for lq in query:
+        propositions += similar_word(lq)
+
+    propositions = prepare_propositions(query, propositions)[:5]
+    
+    print "Choose extension:"
+    print 0, ":  ---"
+    for i, prop in enumerate(propositions):
+        print i+1, ": ", prop[1]
+
+    tip = raw_input('-->')
+
+    if int(tip) > 0:
+        query.append(propositions[int(tip)-1][1])
+    
     # Read and prepare documents (query is treated like the last document)
     preformated = open(sys.argv[1], "r")
     #preformated = open("documents.txt", "r")
@@ -137,6 +161,37 @@ def main():
     result = np.sort(result, order='sim')
 
     print result[::-1]
+
+def similar_word(word):
+    ref = wn.synsets(word)[0]
+    result = Counter()
+    
+    synsets = wn.synsets(word)
+    for syn in synsets:
+        for lem in syn.lemmas():
+            value = lem.synset().path_similarity(ref)
+            result[lem.name()] = max(value, result[lem.name()])
+
+    result[word] = .0
+    result = sorted([(result[k], k) for k in result], reverse=True)
+    return result[:5]
+
+
+def rank_query_word(proposition):
+    ref = wn.synsets(proposition)[0]
+    def rank_word(word):
+        return wn.synsets(word)[0].path_similarity(ref)
+    return rank_word
+
+def rank_proposition(query, proposition):
+    ranks = map(rank_query_word(proposition), query)
+    return reduce(lambda x,y: x+y, ranks)
+
+
+def prepare_propositions(query, propositions):
+    return sorted([(rank_proposition(query, p1), p1.replace("_", " ")) for _, p1 in propositions], reverse=True)
+
+
 
 if __name__ == "__main__":
     main()
