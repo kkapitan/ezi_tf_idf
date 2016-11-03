@@ -165,6 +165,7 @@ def main():
 
     print result[::-1]
 
+# Find similar words for given word
 def similar_word(word):
     ref = wn.synsets(word)[0]
     result = Counter()
@@ -180,6 +181,7 @@ def similar_word(word):
     return result[:5]
 
 
+# Ranks word based on path similarity
 def rank_query_word(proposition):
     ref = wn.synsets(proposition)[0]
     def rank_word(word):
@@ -190,9 +192,15 @@ def rank_proposition(query, proposition):
     ranks = map(rank_query_word(proposition), query)
     return reduce(lambda x,y: x+y, ranks)
 
+# Sorts propositions
+def prepare_proposition(query):
+    def prepare(proposition):
+        return (rank_proposition(query, proposition[1]), proposition[1].replace("_", " "))
+    return prepare
 
 def prepare_propositions(query, propositions):
-    return sorted([(rank_proposition(query, p1), p1.replace("_", " ")) for _, p1 in propositions], reverse=True)
+    return sorted(map(prepare_proposition(query), propositions), reverse=True)
+
 
 
 
