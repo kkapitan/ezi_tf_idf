@@ -103,17 +103,16 @@ def main():
     # Read query from standard input
     query = sys.argv[3:]
     
-    
+    # Return if query is nil
     if len(query) == 0:
+        print "Error: No query specified!!!"
         return
-    
-    propositions = []
 
-    for lq in query:
-        propositions += similar_word(lq)
-
+    # Gather propositions
+    propositions = reduce(lambda x, y: x + similar_word(y), query, [])
     propositions = prepare_propositions(query, propositions)[:5]
 
+    # Print interface
     query_string = reduce(lambda x, y: x + " " + y, query)
     print "<------ Query ------>"
 
@@ -121,13 +120,12 @@ def main():
 
     print "<------ Similar queries ------>"
     for i, prop in enumerate(propositions):
-        
         print str(i+1)+")", query_string + " " + prop[1]
 
-    tip = raw_input('\nChoose query (0 for original): ')
-
-    if int(tip) > 0:
-        query.append(propositions[int(tip)-1][1])
+    # Choose and extend query
+    chosen_query = int(raw_input('\nChoose query (0 for original): '))
+    if chosen_query > 0:
+        query.append(propositions[chosen_query-1][1])
     
     # Read and prepare documents (query is treated like the last document)
     preformated = open(sys.argv[1], "r")
