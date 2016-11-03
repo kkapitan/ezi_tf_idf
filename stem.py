@@ -98,16 +98,18 @@ def cosinus_sim(q):
 
 def main():
     # Read query from standard input
-    query = sys.argv[1:]
+    query = sys.argv[3:]
     
     # Read and prepare documents (query is treated like the last document)
-    preformated = open("documents.txt", "r")
+    preformated = open(sys.argv[1], "r")
+    #preformated = open("documents.txt", "r")
     formated, titles = prepare_documents(preformated)
     formated += [query]
     stemmed = stem_documents(formated)
 
     # Read and prepare keywords
-    key_preformated = open("keywords.txt", "r")
+    key_preformated = open(sys.argv[2], "r")
+    #key_preformated = open("keywords.txt", "r")
     key_formated, x = prepare_documents(key_preformated)
     key_stemmed = np.unique(stem_documents(key_formated)[0])
     
@@ -115,8 +117,9 @@ def main():
     valid = len(filter(lambda q:stem(q) in key_stemmed, query)) > 0
 
     if not valid:
+        #print "Your query is invalid"
         return
-    
+
     # Create similarity vector using tf-idf method
     bag = create_bag_of_words(stemmed, key_stemmed)
     tf = normalize_bag_of_words(bag)
@@ -126,7 +129,7 @@ def main():
     
     # Prepare results and sort them by descending similarity
     sim_with_titles = map(lambda (i, sim): (sim, titles[i]), enumerate(similar))
-    result = filter(lambda (sim, title): sim > 0, sim_with_titles)
+    result = filter(lambda (sim, title): sim >= 0, sim_with_titles)
 
     res_type = [('sim', float), ('title', 'S100')]
 
