@@ -192,7 +192,7 @@ def rank_proposition(query, proposition):
     ranks = map(rank_query_word(proposition), query)
     return reduce(lambda x,y: x+y, ranks)
 
-# Sorts propositions
+# Prepares propositions
 def prepare_proposition(query):
     def prepare(proposition):
         return (rank_proposition(query, proposition[1]), proposition[1].replace("_", " "))
@@ -200,9 +200,6 @@ def prepare_proposition(query):
 
 def prepare_propositions(query, propositions):
     return sorted(map(prepare_proposition(query), propositions), reverse=True)
-
-
-
 
 if __name__ == "__main__":
     main()
