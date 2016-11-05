@@ -124,7 +124,7 @@ def main():
 
     # Choose and extend query
     chosen_query = int(raw_input('\nChoose query (0 for original): '))
-    if chosen_query > 0:
+    if chosen_query > 0 and chosen_query <= len(propositions):
         query.append(propositions[chosen_query-1][1])
     
     # Read and prepare documents (query is treated like the last document)
@@ -167,6 +167,9 @@ def main():
 
 # Find similar words for given word
 def similar_word(word):
+    if len(wn.synsets(word)) <= 0:
+        return []
+    
     ref = wn.synsets(word)[0]
     result = Counter()
     
