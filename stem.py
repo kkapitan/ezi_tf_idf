@@ -205,7 +205,7 @@ def main():
             dict[kmeans.labels_[i]] += [gr]
 
             for entry in dict:
-                print (entry)
+                print "Group " + str(entry + 1)
                 for i, y in enumerate(dict[entry]):
                     print (y)
     else:
