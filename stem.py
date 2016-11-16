@@ -123,38 +123,50 @@ def cosinus_sim(q):
 
 
 def main():
+    #Check number of arguments
+    if len(sys.argv) < 4:
+        print "Error: Not enough arguments!!!"
+        return
+
     # Read query from standard input
-    query = sys.argv[3:]
+    mode = sys.argv[3]
+    query = sys.argv[4:]
     
+    grouping = mode == "group"
+
     # Return if query is nil
-    # if len(query) == 0:
-    #     print "Error: No query specified!!!"
-    #     return
+    if not grouping and len(query) == 0:
+         print "Error: No query specified!!!"
+         return
 
-    # Gather propositions
-    #propositions = reduce(lambda x, y: x + similar_word(y), query, [])
-    #propositions = prepare_propositions(query, propositions)[:5]
+    if not grouping:
+        # Gather propositions
+        propositions = reduce(lambda x, y: x + similar_word(y), query, [])
+        propositions = prepare_propositions(query, propositions)[:5]
 
-    # Print interface
-    #query_string = reduce(lambda x, y: x + " " + y, query)
-    #print "<------ Query ------>"
+        # Print interface
+        query_string = reduce(lambda x, y: x + " " + y, query)
+        print "<------ Query ------>"
 
-    #print query_string + "\n"
+        print query_string + "\n"
 
-    #print "<------ Similar queries ------>"
-    #for i, prop in enumerate(propositions):
-    #    print str(i+1)+")", query_string + " " + prop[1]
+        print "<------ Similar queries ------>"
+        for i, prop in enumerate(propositions):
+            print str(i+1)+")", query_string + " " + prop[1]
 
-    # Choose and extend query
-    #chosen_query = int(raw_input('\nChoose query (0 for original): '))
-    #if chosen_query > 0 and chosen_query <= len(propositions):
-    #    query.append(propositions[chosen_query-1][1])
+        # Choose and extend query
+        chosen_query = int(raw_input('\nChoose query (0 for original): '))
+        if chosen_query > 0 and chosen_query <= len(propositions):
+            query.append(propositions[chosen_query-1][1])
     
     # Read and prepare documents (query is treated like the last document)
     preformated = open(sys.argv[1], "r")
     
     formated, groups, titles = prepare_documents(preformated, False)
-    #formated += [query]
+    
+    if not grouping:
+        formated += [query]
+
     stemmed = stem_documents(formated)
 
     # Read and prepare keywords
@@ -163,12 +175,13 @@ def main():
     key_formated, y, x = prepare_documents(key_preformated, True)
     key_stemmed = np.unique(stem_documents(key_formated)[0])
     
-    # Check if query is valid (contained in keywords)
-    #valid = len(filter(lambda q:stem(q) in key_stemmed, query)) > 0
+    if not grouping:
+        # Check if query is valid (contained in keywords)
+        valid = len(filter(lambda q:stem(q) in key_stemmed, query)) > 0
 
-    #if not valid:
-        #print "Your query is invalid"
-        #return
+        if not valid:
+            print "Your query is invalid"
+            return
 
     # Create similarity vector using tf-idf method
     bag = create_bag_of_words(stemmed, key_stemmed)
@@ -176,34 +189,37 @@ def main():
     idf = calculate_idf(bag)
     tfidf = multiply(tf, idf)
     similar = sim(tfidf)
-    doc_similar = pre_compute_distances(tfidf)
 
-    #Launch kMeans
-    iterations = int(query[0]) if len(query) > 0 else 100
-    print(iterations) 
-    if iterations > 0:
-        kmeans = KMeans(n_clusters=9, random_state=0, max_iter=iterations).fit(doc_similar)
+    if grouping:
+        doc_similar = pre_compute_distances(tfidf)
 
-    dict = {}
-    for i, gr in enumerate(groups):
-        dict.setdefault(kmeans.labels_[i], [])
-        dict[kmeans.labels_[i]] += [gr]
+        #Launch kMeans
+        iterations = int(query[0]) if len(query) > 0 else 100
+    
+        if iterations > 0:
+            kmeans = KMeans(n_clusters=9, random_state=0, max_iter=iterations).fit(doc_similar)
 
-        for entry in dict:
-            print (entry)
-            for i, y in enumerate(dict[entry]):
-                print (y)
+        dict = {}
+        for i, gr in enumerate(groups):
+            dict.setdefault(kmeans.labels_[i], [])
+            dict[kmeans.labels_[i]] += [gr]
 
-    # Prepare results and sort them by descending similarity
-    # sim_with_titles = map(lambda (i, sim): (sim, titles[i], group[i]), enumerate(similar))
-    # result = filter(lambda (group, sim, title): sim >= 0, sim_with_titles)
+            for entry in dict:
+                print (entry)
+                for i, y in enumerate(dict[entry]):
+                    print (y)
+    else:
 
-    # res_type = [('group', 'S100'), ('sim', float), ('title', 'S100')]
+        # Prepare results and sort them by descending similarity
+        sim_with_titles = map(lambda (i, sim): (groups[i], sim, titles[i]), enumerate(similar))
+        result = filter(lambda (group, sim, title): sim >= 0, sim_with_titles)
 
-    # result = np.asarray(result, dtype=res_type)
-    # result = np.sort(result, order='sim')
+        res_type = [('group', 'S100'), ('sim', float), ('title', 'S100')]
 
-    # print result[::-1]
+        result = np.asarray(result, dtype=res_type)
+        result = np.sort(result, order='sim')
+
+        print result[::-1]
 
 # Find similar words for given word
 def similar_word(word):
@@ -244,14 +260,14 @@ def prepare_proposition(query):
 def prepare_propositions(query, propositions):
     return sorted(map(prepare_proposition(query), propositions), reverse=True)
 
+# Prepare matrix of distances
+def pre_compute_distances_with_doc(tfidf):
+    def compute(doc):
+        return map(lambda doc2: 1 - cosinus_sim(doc)(doc2), tfidf)
+    return compute
+
 def pre_compute_distances(tfidf):
-    result = []
-    for i, doc in enumerate(tfidf):
-        result.append([])
-        for j, doc2 in enumerate(tfidf):
-            r = cosinus_sim(doc)(doc2)
-            result[i].append(1 - r)
-    return result
+    return map(pre_compute_distances_with_doc(tfidf), tfidf)
 
 if __name__ == "__main__":
     main()
