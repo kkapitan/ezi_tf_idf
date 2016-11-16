@@ -5,6 +5,7 @@ from stemming.porter2 import stem
 import sys
 from nltk.corpus import wordnet as wn
 from collections import Counter
+from sklearn.cluster import KMeans
 
 
 # Prepare word by removing characters that are not alphanumeric
@@ -16,34 +17,50 @@ def prepare_document(document):
     return map(prepare_word, document.split())
 
 # Prepare documents (needs refactooor)
-def prepare_documents(file):
+def prepare_documents(file, include_keywords):
     document_file = ""
     documents = []
 
     title = ""
     titles = []
+
+    groups = []
+    group = ""
     
+    if include_keywords:
+        group = "Group"
+        title = "Title"
+
     for line in file:
         clean_line = line.strip()
         
-        if clean_line:
-            document_file += " " + clean_line
-            if not title:
-                title = clean_line
-        else:
+        if not clean_line:
             temp_document = document_file.replace("-", " ")
             formated_document = prepare_document(temp_document)
 
             documents.append(formated_document)
-            titles.append(title)
+            if not include_keywords:
+                titles.append(title)
+                groups.append(group)
+                title = ""
+                group = ""
 
             document_file = ""
-            title = ""
+        elif not group:
+            group =  clean_line
+        else:
+            document_file += " " + clean_line
+            if not title:
+                title = clean_line
 
     formated_document = prepare_document(document_file)
     documents.append(formated_document)
-    titles.append(title)
-    return documents, titles
+    
+    if not include_keywords:
+        titles.append(title)
+        groups.append(group)
+
+    return documents, groups, titles
 
 # Stem document
 def stem_document(document):
@@ -74,10 +91,14 @@ def normalize_bag_of_words(documents):
 def number_of_documents_with_term(term):
     return len(filter(lambda x: x > 0, term[:-1]))
 
+# Return idf for one term
+def calculate_term_idf(total):
+    return lambda term: 0.0 if number_of_documents_with_term(term) == 0 else np.log10(total / number_of_documents_with_term(term)) 
+
 # Calculate idf
 def calculate_idf(docs):
     number_of_documents = float(len(docs) - 1)
-    return map(lambda t: np.log10(number_of_documents / number_of_documents_with_term(t)), docs.T)
+    return map(calculate_term_idf(number_of_documents), docs.T)
 
 # Multiply tf by idf
 def multiply(tf, idf):
@@ -99,53 +120,55 @@ def cosinus_sim(q):
         return np.dot(d, q) / (m_q * m_d) if m_d * m_q else 0
     return sim
 
+
+
 def main():
     # Read query from standard input
     query = sys.argv[3:]
     
     # Return if query is nil
-    if len(query) == 0:
-        print "Error: No query specified!!!"
-        return
+    # if len(query) == 0:
+    #     print "Error: No query specified!!!"
+    #     return
 
     # Gather propositions
-    propositions = reduce(lambda x, y: x + similar_word(y), query, [])
-    propositions = prepare_propositions(query, propositions)[:5]
+    #propositions = reduce(lambda x, y: x + similar_word(y), query, [])
+    #propositions = prepare_propositions(query, propositions)[:5]
 
     # Print interface
-    query_string = reduce(lambda x, y: x + " " + y, query)
-    print "<------ Query ------>"
+    #query_string = reduce(lambda x, y: x + " " + y, query)
+    #print "<------ Query ------>"
 
-    print query_string + "\n"
+    #print query_string + "\n"
 
-    print "<------ Similar queries ------>"
-    for i, prop in enumerate(propositions):
-        print str(i+1)+")", query_string + " " + prop[1]
+    #print "<------ Similar queries ------>"
+    #for i, prop in enumerate(propositions):
+    #    print str(i+1)+")", query_string + " " + prop[1]
 
     # Choose and extend query
-    chosen_query = int(raw_input('\nChoose query (0 for original): '))
-    if chosen_query > 0 and chosen_query <= len(propositions):
-        query.append(propositions[chosen_query-1][1])
+    #chosen_query = int(raw_input('\nChoose query (0 for original): '))
+    #if chosen_query > 0 and chosen_query <= len(propositions):
+    #    query.append(propositions[chosen_query-1][1])
     
     # Read and prepare documents (query is treated like the last document)
     preformated = open(sys.argv[1], "r")
-    #preformated = open("documents.txt", "r")
-    formated, titles = prepare_documents(preformated)
-    formated += [query]
+    
+    formated, groups, titles = prepare_documents(preformated, False)
+    #formated += [query]
     stemmed = stem_documents(formated)
 
     # Read and prepare keywords
     key_preformated = open(sys.argv[2], "r")
-    #key_preformated = open("keywords.txt", "r")
-    key_formated, x = prepare_documents(key_preformated)
+    
+    key_formated, y, x = prepare_documents(key_preformated, True)
     key_stemmed = np.unique(stem_documents(key_formated)[0])
     
     # Check if query is valid (contained in keywords)
-    valid = len(filter(lambda q:stem(q) in key_stemmed, query)) > 0
+    #valid = len(filter(lambda q:stem(q) in key_stemmed, query)) > 0
 
-    if not valid:
+    #if not valid:
         #print "Your query is invalid"
-        return
+        #return
 
     # Create similarity vector using tf-idf method
     bag = create_bag_of_words(stemmed, key_stemmed)
@@ -153,17 +176,34 @@ def main():
     idf = calculate_idf(bag)
     tfidf = multiply(tf, idf)
     similar = sim(tfidf)
-    
+    doc_similar = pre_compute_distances(tfidf)
+
+    #Launch kMeans
+    iterations = int(query[0]) if len(query) > 0 else 100
+    print(iterations) 
+    if iterations > 0:
+        kmeans = KMeans(n_clusters=9, random_state=0, max_iter=iterations).fit(doc_similar)
+
+    dict = {}
+    for i, gr in enumerate(groups):
+        dict.setdefault(kmeans.labels_[i], [])
+        dict[kmeans.labels_[i]] += [gr]
+
+        for entry in dict:
+            print (entry)
+            for i, y in enumerate(dict[entry]):
+                print (y)
+
     # Prepare results and sort them by descending similarity
-    sim_with_titles = map(lambda (i, sim): (sim, titles[i]), enumerate(similar))
-    result = filter(lambda (sim, title): sim >= 0, sim_with_titles)
+    # sim_with_titles = map(lambda (i, sim): (sim, titles[i], group[i]), enumerate(similar))
+    # result = filter(lambda (group, sim, title): sim >= 0, sim_with_titles)
 
-    res_type = [('sim', float), ('title', 'S100')]
+    # res_type = [('group', 'S100'), ('sim', float), ('title', 'S100')]
 
-    result = np.asarray(result, dtype=res_type)
-    result = np.sort(result, order='sim')
+    # result = np.asarray(result, dtype=res_type)
+    # result = np.sort(result, order='sim')
 
-    print result[::-1]
+    # print result[::-1]
 
 # Find similar words for given word
 def similar_word(word):
@@ -204,5 +244,15 @@ def prepare_proposition(query):
 def prepare_propositions(query, propositions):
     return sorted(map(prepare_proposition(query), propositions), reverse=True)
 
+def pre_compute_distances(tfidf):
+    result = []
+    for i, doc in enumerate(tfidf):
+        result.append([])
+        for j, doc2 in enumerate(tfidf):
+            r = cosinus_sim(doc)(doc2)
+            result[i].append(1 - r)
+    return result
+
 if __name__ == "__main__":
     main()
+
